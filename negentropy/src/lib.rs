@@ -331,11 +331,72 @@ impl TryFrom<u64> for Mode {
 }
 
 
+/// NegentropyStorageBase
+pub trait NegentropyStorageBase {
+    /// Size
+    fn size(&self) -> Result<usize, Error>;
+
+    /// Get Item
+    fn get_item(&self, i: usize) -> Result<Item, Error>;
+
+    /// Iterate
+    fn iterate(&self, begin: usize, end: usize, cb: &dyn Fn(Item, usize) -> bool) -> Result<(), Error>;
+
+    /// Find Lower Bound
+    fn find_lower_bound(&self, first: usize, last: usize, value: &Item) -> usize;
+}
+
+
 /// NegentropyStorageVector
 #[derive(Debug, Clone)]
 pub struct NegentropyStorageVector {
     items: Vec<Item>,
     sealed: bool,
+}
+
+impl NegentropyStorageBase for NegentropyStorageVector {
+    fn size(&self) -> Result<usize, Error> {
+        self.check_sealed()?;
+        Ok(self.items.len())
+    }
+
+    fn get_item(&self, i: usize) -> Result<Item, Error> {
+        self.check_sealed()?;
+        Ok(self.items[i])
+    }
+
+    fn iterate(&self, begin: usize, end: usize, cb: &dyn Fn(Item, usize) -> bool) -> Result<(), Error> {
+        self.check_sealed()?;
+        self.check_bounds(begin, end)?;
+
+        for i in begin..end {
+            if !cb(self.items[i], i) {
+                break;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn find_lower_bound(&self, mut first: usize, last: usize, value: &Item) -> usize {
+        let mut count: usize = last - first;
+
+        while count > 0 {
+            let mut it: usize = first;
+            let step: usize = count / 2;
+            it += step;
+
+            if self.items[it] < *value {
+                it += 1;
+                first = it;
+                count -= step + 1;
+            } else {
+                count = step;
+            }
+        }
+
+        first
+    }
 }
 
 impl NegentropyStorageVector {
@@ -380,53 +441,6 @@ impl NegentropyStorageVector {
         }
 
         Ok(())
-    }
-
-    /// Size
-    pub fn size(&self) -> Result<usize, Error> {
-        self.check_sealed()?;
-        Ok(self.items.len())
-    }
-
-    /// Get Item
-    pub fn get_item(&self, i: usize) -> Result<Item, Error> {
-        self.check_sealed()?;
-        Ok(self.items[i])
-    }
-
-    /// Iterate
-    pub fn iterate(&self, begin: usize, end: usize, cb: &dyn Fn(Item, usize) -> bool) -> Result<(), Error> {
-        self.check_sealed()?;
-        self.check_bounds(begin, end)?;
-
-        for i in begin..end {
-            if !cb(self.items[i], i) {
-                break;
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Find Lower Bound
-    pub fn find_lower_bound(&self, mut first: usize, last: usize, value: &Item) -> usize {
-        let mut count: usize = last - first;
-
-        while count > 0 {
-            let mut it: usize = first;
-            let step: usize = count / 2;
-            it += step;
-
-            if self.items[it] < *value {
-                it += 1;
-                first = it;
-                count -= step + 1;
-            } else {
-                count = step;
-            }
-        }
-
-        first
     }
 
     fn check_sealed(&self) -> Result<(), Error> {
