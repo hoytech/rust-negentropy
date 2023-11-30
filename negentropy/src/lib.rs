@@ -34,6 +34,8 @@ mod sha256;
 pub use self::bytes::Bytes;
 
 const PROTOCOL_VERSION_0: u64 = 0x60;
+const ID_SIZE_TP: usize = 32;
+
 const MAX_U64: u64 = u64::MAX;
 const BUCKETS: usize = 16;
 const DOUBLE_BUCKETS: usize = BUCKETS * 2;
@@ -80,6 +82,8 @@ pub enum Error {
     },
     /// Hex error
     Hex(hex::Error),
+    /// Bad range
+    BadRange,
 }
 
 #[cfg(feature = "std")]
@@ -111,6 +115,7 @@ impl fmt::Display for Error {
                 expected, found
             ),
             Self::Hex(e) => write!(f, "Hex: {}", e),
+            Self::BadRange => write!(f, "bad range"),
         }
     }
 }
@@ -121,8 +126,9 @@ impl From<hex::Error> for Error {
     }
 }
 
+/// Item
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-struct Item {
+pub struct Item {
     timestamp: u64,
     id_size: usize,
     id: [u8; 32],
@@ -213,11 +219,125 @@ impl TryFrom<u64> for Mode {
             0 => Ok(Mode::Skip),
             1 => Ok(Mode::Fingerprint),
             2 => Ok(Mode::IdList),
-            3 => Ok(Mode::Continuation),
             m => Err(Error::UnexpectedMode(m)),
         }
     }
 }
+
+
+/// NegentropyStorageVector
+#[derive(Debug, Clone)]
+pub struct NegentropyStorageVector {
+    items: Vec<Item>,
+    sealed: bool,
+}
+
+impl NegentropyStorageVector {
+    /// Create new [`NegentropyStorageVector`] instance
+    pub fn new() -> Result<Self, Error> {
+        Ok(Self {
+            items: Vec::new(),
+            sealed: false,
+        })
+    }
+
+    /// Add item
+    pub fn add_item(&mut self, created_at: u64, id: Bytes) -> Result<(), Error> {
+        if self.sealed {
+            return Err(Error::AlreadySealed);
+        }
+
+        let id: &[u8] = id.as_ref();
+        if id.len() != ID_SIZE_TP {
+            return Err(Error::IdSizeNotMatch);
+        }
+
+        let elem: Item = Item::with_timestamp_and_id(created_at, &id)?;
+
+        self.items.push(elem);
+        Ok(())
+    }
+
+    /// Seal
+    pub fn seal(&mut self) -> Result<(), Error> {
+        if self.sealed {
+            return Err(Error::AlreadySealed);
+        }
+        self.sealed = true;
+
+        self.items.sort();
+
+        for i in 1..self.items.len() {
+            if self.items[i - 1] == self.items[i] {
+                return Err(Error::DuplicateItemAdded);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Size
+    pub fn size(&self) -> Result<usize, Error> {
+        self.check_sealed()?;
+        Ok(self.items.len())
+    }
+
+    /// Get Item
+    pub fn get_item(&self, i: usize) -> Result<Item, Error> {
+        self.check_sealed()?;
+        Ok(self.items[i])
+    }
+
+    /// Iterate
+    pub fn iterate(&self, begin: usize, end: usize, cb: &dyn Fn(Item, usize) -> bool) -> Result<(), Error> {
+        self.check_sealed()?;
+        self.check_bounds(begin, end)?;
+
+        for i in begin..end {
+            if !cb(self.items[i], i) {
+                break;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Find Lower Bound
+    pub fn find_lower_bound(&self, mut first: usize, last: usize, value: &Item) -> usize {
+        let mut count: usize = last - first;
+
+        while count > 0 {
+            let mut it: usize = first;
+            let step: usize = count / 2;
+            it += step;
+
+            if self.items[it] < *value {
+                it += 1;
+                first = it;
+                count -= step + 1;
+            } else {
+                count = step;
+            }
+        }
+
+        first
+    }
+
+    fn check_sealed(&self) -> Result<(), Error> {
+        if !self.sealed {
+            return Err(Error::NotSealed);
+        }
+        Ok(())
+    }
+
+    fn check_bounds(&self, begin: usize, end: usize) -> Result<(), Error> {
+        if begin > end || end > self.items.len() {
+            return Err(Error::BadRange);
+        }
+        Ok(())
+    }
+}
+
 
 /// Negentropy
 #[derive(Debug, Clone)]
