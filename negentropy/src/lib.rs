@@ -25,7 +25,11 @@ use core::cmp::Ordering;
 use core::convert::TryFrom;
 use core::fmt;
 #[cfg(feature = "std")]
+
 use std::collections::HashSet;
+use std::io::Cursor;
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use std::num::Wrapping;
 
 mod bytes;
 mod hex;
@@ -35,6 +39,7 @@ pub use self::bytes::Bytes;
 
 const PROTOCOL_VERSION_0: u64 = 0x60;
 const ID_SIZE_TP: usize = 32;
+const FINGERPRINT_SIZE_TP: usize = 16;
 
 const MAX_U64: u64 = u64::MAX;
 const BUCKETS: usize = 16;
@@ -188,6 +193,107 @@ impl Ord for Item {
         }
     }
 }
+
+
+/// Fingerprint
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Fingerprint {
+    buf: [u8; FINGERPRINT_SIZE_TP],
+}
+
+impl Fingerprint {
+    /// New Fingerprint
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+
+/// Accumulator
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Accumulator {
+    buf: [u8; ID_SIZE_TP],
+}
+
+impl Accumulator {
+    /// New Accumulator
+    pub fn new() -> Self {
+        Self {
+            buf: [0; ID_SIZE_TP],
+        }
+    }
+
+    /// Add Item
+    pub fn add_item(&mut self, item: &Item) {
+        self.add(&item.id);
+    }
+
+    /// Add Accum
+    pub fn add_accum(&mut self, accum: &Accumulator) {
+        self.add(&accum.buf);
+    }
+
+    /// Add
+    pub fn add(&mut self, buf: &[u8; ID_SIZE_TP]) -> () {
+        let mut curr_carry = Wrapping(0u64);
+        let mut next_carry = Wrapping(0u64);
+
+        let mut p = Cursor::new(self.buf);
+        let mut po = Cursor::new(buf);
+
+        let mut wtr = vec![];
+
+        for _i in 0..4 {
+            let orig = Wrapping(p.read_u64::<LittleEndian>().unwrap());
+            let other_v = Wrapping(po.read_u64::<LittleEndian>().unwrap());
+
+            let mut next = orig;
+
+            next += curr_carry;
+            if next < orig { next_carry = Wrapping(1u64); }
+
+            next += other_v;
+            if next < other_v { next_carry = Wrapping(1u64); }
+
+            wtr.write_u64::<LittleEndian>(next.0).unwrap();
+            curr_carry = next_carry;
+            next_carry = Wrapping(0u64);
+        }
+
+        self.buf[0..ID_SIZE_TP].copy_from_slice(&wtr);
+    }
+
+    /// Negate
+    pub fn negate(&mut self) -> () {
+        for i in 0..ID_SIZE_TP {
+            self.buf[i] = !self.buf[i];
+        }
+
+        let mut one = Accumulator::new();
+        one.buf[0] = 1u8;
+        self.add(&one.buf);
+    }
+
+    /// Sub Item
+    pub fn sub_item(&mut self, item: &Item) {
+        self.sub(&item.id);
+    }
+
+    /// Sub Accum
+    pub fn sub_accum(&mut self, accum: &Accumulator) {
+        self.sub(&accum.buf);
+    }
+
+    /// Sub
+    pub fn sub(&mut self, buf: &[u8; ID_SIZE_TP]) -> () {
+        let mut neg = Accumulator::new();
+        neg.buf = *buf;
+        neg.negate();
+        self.add_accum(&neg);
+    }
+}
+
+
 
 #[derive(Debug, Clone)]
 struct OutputRange {
