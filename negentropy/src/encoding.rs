@@ -1,8 +1,6 @@
 use crate::error;
-use crate::types;
 
 use self::error::Error;
-use self::types::{Mode};
 
 
 pub fn get_bytes(encoded: &mut &[u8], n: usize) -> Result<Vec<u8>, Error> {
@@ -12,11 +10,6 @@ pub fn get_bytes(encoded: &mut &[u8], n: usize) -> Result<Vec<u8>, Error> {
     let res: Vec<u8> = encoded.get(..n).unwrap_or_default().to_vec();
     *encoded = encoded.get(n..).unwrap_or_default();
     Ok(res)
-}
-
-pub fn decode_mode(encoded: &mut &[u8]) -> Result<Mode, Error> {
-    let mode = decode_var_int(encoded)?;
-    Mode::try_from(mode)
 }
 
 pub fn decode_var_int(encoded: &mut &[u8]) -> Result<u64, Error> {
@@ -33,10 +26,6 @@ pub fn decode_var_int(encoded: &mut &[u8]) -> Result<u64, Error> {
     Ok(res)
 }
 
-
-pub fn encode_mode(mode: Mode) -> Vec<u8> {
-    encode_var_int(mode.as_u64())
-}
 
 pub fn encode_var_int(mut n: u64) -> Vec<u8> {
     if n == 0 {

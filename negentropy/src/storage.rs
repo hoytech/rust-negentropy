@@ -4,7 +4,7 @@ use crate::bytes;
 
 pub use self::bytes::Bytes;
 pub use self::error::Error;
-pub use self::types::{ID_SIZE, Item};
+pub use self::types::{ID_SIZE, Item, Bound, Accumulator, Fingerprint};
 
 
 
@@ -18,10 +18,13 @@ pub trait NegentropyStorageBase {
     fn get_item(&self, i: usize) -> Result<Item, Error>;
 
     /// Iterate
-    fn iterate(&self, begin: usize, end: usize, cb: &dyn Fn(Item, usize) -> bool) -> Result<(), Error>;
+    fn iterate(&self, begin: usize, end: usize, cb: &mut dyn FnMut(Item, usize) -> bool) -> Result<(), Error>;
 
     /// Find Lower Bound
-    fn find_lower_bound(&self, first: usize, last: usize, value: &Item) -> usize;
+    fn find_lower_bound(&self, first: usize, last: usize, value: &Bound) -> usize;
+
+    /// Fingerprint
+    fn fingerprint(&self, begin: usize, end: usize) -> Result<Fingerprint, Error>;
 }
 
 
@@ -43,7 +46,7 @@ impl NegentropyStorageBase for NegentropyStorageVector {
         Ok(self.items[i])
     }
 
-    fn iterate(&self, begin: usize, end: usize, cb: &dyn Fn(Item, usize) -> bool) -> Result<(), Error> {
+    fn iterate(&self, begin: usize, end: usize, cb: &mut dyn FnMut(Item, usize) -> bool) -> Result<(), Error> {
         self.check_sealed()?;
         self.check_bounds(begin, end)?;
 
@@ -56,7 +59,7 @@ impl NegentropyStorageBase for NegentropyStorageVector {
         Ok(())
     }
 
-    fn find_lower_bound(&self, mut first: usize, last: usize, value: &Item) -> usize {
+    fn find_lower_bound(&self, mut first: usize, last: usize, value: &Bound) -> usize {
         let mut count: usize = last - first;
 
         while count > 0 {
@@ -64,7 +67,7 @@ impl NegentropyStorageBase for NegentropyStorageVector {
             let step: usize = count / 2;
             it += step;
 
-            if self.items[it] < *value {
+            if self.items[it] < value.item {
                 it += 1;
                 first = it;
                 count -= step + 1;
@@ -74,6 +77,17 @@ impl NegentropyStorageBase for NegentropyStorageVector {
         }
 
         first
+    }
+
+    fn fingerprint(&self, begin: usize, end: usize) -> Result<Fingerprint, Error> {
+        let mut out = Accumulator::new();
+
+        self.iterate(begin, end, &mut |item: Item, _| {
+            out.add(&item.id);
+            true
+        })?;
+
+        Ok(out.get_fingerprint((end - begin) as u64))
     }
 }
 

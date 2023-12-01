@@ -3,10 +3,14 @@ use std::io::Cursor;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::num::Wrapping;
 use core::cmp::Ordering;
+use std::convert::TryInto;
 
 use crate::error;
+use crate::encoding;
+use crate::sha256;
 
 pub use self::error::Error;
+pub use self::encoding::{encode_var_int};
 
 
 
@@ -83,7 +87,7 @@ impl Item {
     }
 
     pub fn get_id(&self) -> &[u8] {
-        self.id.get(..self.id_size).unwrap_or_default()
+        &self.id
     }
 }
 
@@ -106,8 +110,8 @@ impl Ord for Item {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Bound {
-    item: Item,
-    id_len: usize,
+    pub item: Item,
+    pub id_len: usize,
 }
 
 impl Bound {
@@ -117,7 +121,7 @@ impl Bound {
 
     pub fn from_item(item: &Item) -> Self {
         let mut bound = Self::new();
-        bound.item = item;
+        bound.item = *item;
         bound.id_len = ID_SIZE;
         bound
     }
@@ -128,27 +132,6 @@ impl Bound {
         bound.id_len = 0;
         bound
     }
-
-    /*FIXME needed?
-    pub fn with_timestamp_and_id<T>(timestamp: u64, id: T) -> Result<Self, Error>
-    where
-        T: AsRef<[u8]>,
-    {
-        let id: &[u8] = id.as_ref();
-        let len: usize = id.len();
-
-        if len > ID_SIZE {
-            return Err(Error::IdTooBig); // FIXME: change name of error
-        }
-
-        let mut bound = Self::new();
-        bound.item.timestamp = timestamp;
-        bound.item.id[..len].copy_from_slice(id);
-        bound.id_size = len;
-
-        Ok(bound)
-    }
-    */
 }
 
 impl PartialOrd for Bound {
@@ -159,7 +142,7 @@ impl PartialOrd for Bound {
 
 impl Ord for Bound {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.item.cmp(other.item)
+        self.item.cmp(&other.item)
     }
 }
 
@@ -174,6 +157,10 @@ impl Fingerprint {
     /// New Fingerprint
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn vec(&self) -> Vec<u8> {
+        self.buf.to_vec()
     }
 }
 
@@ -259,5 +246,18 @@ impl Accumulator {
         neg.buf = *buf;
         neg.negate();
         self.add_accum(&neg);
+    }
+
+    pub fn get_fingerprint(&self, n: u64) -> Fingerprint {
+        let mut input: Vec<u8> = Vec::new();
+        input.extend(&self.buf);
+        input.extend(encode_var_int(n));
+
+        let hash = sha256::hash(input).to_vec();
+
+        let mut out = Fingerprint::new();
+        out.buf = hash[0..FINGERPRINT_SIZE].try_into().unwrap();
+
+        out
     }
 }
