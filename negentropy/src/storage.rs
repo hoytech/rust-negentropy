@@ -1,8 +1,11 @@
-use core::fmt;
-
 use crate::error;
+use crate::types;
+use crate::bytes;
 
+pub use self::bytes::Bytes;
 pub use self::error::Error;
+pub use self::types::{ID_SIZE, Item};
+
 
 
 
@@ -90,7 +93,7 @@ impl NegentropyStorageVector {
         }
 
         let id: &[u8] = id.as_ref();
-        if id.len() != ID_SIZE_TP {
+        if id.len() != ID_SIZE {
             return Err(Error::IdSizeNotMatch);
         }
 

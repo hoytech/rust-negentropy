@@ -10,9 +10,9 @@ pub use self::error::Error;
 
 
 
-pub const PROTOCOL_VERSION_0: u64 = 0x60;
-pub const ID_SIZE_TP: usize = 32;
-pub const FINGERPRINT_SIZE_TP: usize = 16;
+pub const PROTOCOL_VERSION: u64 = 0x61; // Version 1
+pub const ID_SIZE: usize = 32;
+pub const FINGERPRINT_SIZE: usize = 16;
 
 pub const MAX_U64: u64 = u64::MAX;
 pub const BUCKETS: usize = 16;
@@ -26,8 +26,6 @@ pub enum Mode {
     Skip = 0,
     Fingerprint = 1,
     IdList = 2,
-    Continuation = 3,
-    UnsupportedProtocolVersion = 4,
 }
 
 impl Mode {
@@ -52,8 +50,7 @@ impl TryFrom<u64> for Mode {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Item {
     pub timestamp: u64,
-    pub id_size: usize,
-    pub id: [u8; 32],
+    pub id: [u8; ID_SIZE],
 }
 
 impl Item {
@@ -74,20 +71,15 @@ impl Item {
         let id: &[u8] = id.as_ref();
         let len: usize = id.len();
 
-        if len > 32 {
-            return Err(Error::IdTooBig);
+        if len != ID_SIZE {
+            return Err(Error::IdTooBig); // FIXME: change name of error
         }
 
         let mut item = Self::new();
         item.timestamp = timestamp;
-        item.id_size = len;
         item.id[..len].copy_from_slice(id);
 
         Ok(item)
-    }
-
-    pub fn id_size(&self) -> usize {
-        self.id_size
     }
 
     pub fn get_id(&self) -> &[u8] {
@@ -112,10 +104,70 @@ impl Ord for Item {
 }
 
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Bound {
+    item: Item,
+    id_len: usize,
+}
+
+impl Bound {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn from_item(item: &Item) -> Self {
+        let mut bound = Self::new();
+        bound.item = item;
+        bound.id_len = ID_SIZE;
+        bound
+    }
+
+    pub fn with_timestamp(timestamp: u64) -> Self {
+        let mut bound = Self::new();
+        bound.item.timestamp = timestamp;
+        bound.id_len = 0;
+        bound
+    }
+
+    /*FIXME needed?
+    pub fn with_timestamp_and_id<T>(timestamp: u64, id: T) -> Result<Self, Error>
+    where
+        T: AsRef<[u8]>,
+    {
+        let id: &[u8] = id.as_ref();
+        let len: usize = id.len();
+
+        if len > ID_SIZE {
+            return Err(Error::IdTooBig); // FIXME: change name of error
+        }
+
+        let mut bound = Self::new();
+        bound.item.timestamp = timestamp;
+        bound.item.id[..len].copy_from_slice(id);
+        bound.id_size = len;
+
+        Ok(bound)
+    }
+    */
+}
+
+impl PartialOrd for Bound {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Bound {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.item.cmp(other.item)
+    }
+}
+
+
 /// Fingerprint
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Fingerprint {
-    buf: [u8; FINGERPRINT_SIZE_TP],
+    pub buf: [u8; FINGERPRINT_SIZE],
 }
 
 impl Fingerprint {
@@ -129,14 +181,14 @@ impl Fingerprint {
 /// Accumulator
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Accumulator {
-    buf: [u8; ID_SIZE_TP],
+    buf: [u8; ID_SIZE],
 }
 
 impl Accumulator {
     /// New Accumulator
     pub fn new() -> Self {
         Self {
-            buf: [0; ID_SIZE_TP],
+            buf: [0; ID_SIZE],
         }
     }
 
@@ -151,7 +203,7 @@ impl Accumulator {
     }
 
     /// Add
-    pub fn add(&mut self, buf: &[u8; ID_SIZE_TP]) -> () {
+    pub fn add(&mut self, buf: &[u8; ID_SIZE]) -> () {
         let mut curr_carry = Wrapping(0u64);
         let mut next_carry = Wrapping(0u64);
 
@@ -177,12 +229,12 @@ impl Accumulator {
             next_carry = Wrapping(0u64);
         }
 
-        self.buf[0..ID_SIZE_TP].copy_from_slice(&wtr);
+        self.buf[0..ID_SIZE].copy_from_slice(&wtr);
     }
 
     /// Negate
     pub fn negate(&mut self) -> () {
-        for i in 0..ID_SIZE_TP {
+        for i in 0..ID_SIZE {
             self.buf[i] = !self.buf[i];
         }
 
@@ -202,7 +254,7 @@ impl Accumulator {
     }
 
     /// Sub
-    pub fn sub(&mut self, buf: &[u8; ID_SIZE_TP]) -> () {
+    pub fn sub(&mut self, buf: &[u8; ID_SIZE]) -> () {
         let mut neg = Accumulator::new();
         neg.buf = *buf;
         neg.negate();
