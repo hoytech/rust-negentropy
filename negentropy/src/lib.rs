@@ -30,15 +30,20 @@ mod hex;
 mod sha256;
 mod types;
 
+/// Module that contains the various storage implementations
 pub mod storage;
 
 pub use self::bytes::Bytes;
 pub use self::error::Error;
 pub use self::storage::{NegentropyStorageBase};
 
-use self::types::{MAX_U64, PROTOCOL_VERSION, ID_SIZE, FINGERPRINT_SIZE, BUCKETS, DOUBLE_BUCKETS, Mode, Item, Bound};
+use self::types::{PROTOCOL_VERSION, ID_SIZE, FINGERPRINT_SIZE, Mode, Item, Bound};
 use self::encoding::{get_bytes, decode_var_int, encode_var_int};
 
+
+const MAX_U64: u64 = u64::MAX;
+const BUCKETS: usize = 16;
+const DOUBLE_BUCKETS: usize = BUCKETS * 2;
 
 
 /// Negentropy
@@ -46,6 +51,7 @@ pub struct Negentropy<'a, T> {
     storage: &'a mut T,
     frame_size_limit: u64,
 
+    /// If this instance has been used to create an initial message
     pub is_initiator: bool,
 
     last_timestamp_in: u64,
@@ -226,7 +232,7 @@ impl<'a, T: NegentropyStorageBase> Negentropy<'a, T> {
                         let mut end_bound = curr_bound;
 
                         self.storage.iterate(lower, upper, &mut |item: Item, index| {
-                            if self.frame_size_limit != 0 && full_output.len() + response_ids.len() > (self.frame_size_limit as usize) - 200 {
+                            if self.exceeded_frame_size_limit(full_output.len() + response_ids.len()) {
                                 end_bound = Bound::from_item(&item);
                                 upper = index; // shrink upper so that remaining range gets correct fingerprint
                                 return false;
@@ -248,7 +254,7 @@ impl<'a, T: NegentropyStorageBase> Negentropy<'a, T> {
                 }
             }
 
-            if self.frame_size_limit != 0 && full_output.len() + o.len() > (self.frame_size_limit as usize) - 200 {
+            if self.exceeded_frame_size_limit(full_output.len() + o.len()) {
                 // frameSizeLimit exceeded: Stop range processing and return a fingerprint for the remaining range
                 let remaining_fingerprint = self.storage.fingerprint(upper, storage_size)?;
 
@@ -312,13 +318,16 @@ impl<'a, T: NegentropyStorageBase> Negentropy<'a, T> {
     }
 
 
+    fn exceeded_frame_size_limit(&self, n: usize) -> bool {
+        self.frame_size_limit != 0 && n > (self.frame_size_limit as usize) - 200
+    }
+
+
+    // Decoding
+
     fn decode_mode(&self, encoded: &mut &[u8]) -> Result<Mode, Error> {
         let mode = decode_var_int(encoded)?;
         Mode::try_from(mode)
-    }
-
-    fn encode_mode(&self, mode: Mode) -> Vec<u8> {
-        encode_var_int(mode.as_u64())
     }
 
     fn decode_timestamp_in(
@@ -346,6 +355,12 @@ impl<'a, T: NegentropyStorageBase> Negentropy<'a, T> {
         Ok(Bound::with_timestamp_and_id(timestamp, id)?)
     }
 
+
+    // Encoding
+
+    fn encode_mode(&self, mode: Mode) -> Vec<u8> {
+        encode_var_int(mode.as_u64())
+    }
 
     fn encode_timestamp_out(&mut self, timestamp: u64) -> Vec<u8> {
         if timestamp == MAX_U64 {

@@ -5,7 +5,7 @@ use std::io::BufRead;
 use std::{env, io};
 
 use negentropy::{Bytes, Negentropy};
-use negentropy::storage::{NegentropyStorageBase, NegentropyStorageVector};
+use negentropy::storage::{NegentropyStorageVector};
 
 
 fn main() {

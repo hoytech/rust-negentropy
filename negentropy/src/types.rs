@@ -14,13 +14,12 @@ pub use self::encoding::{encode_var_int};
 
 
 
+/// Implemented protocol version
 pub const PROTOCOL_VERSION: u64 = 0x61; // Version 1
+/// ID Size
 pub const ID_SIZE: usize = 32;
+/// Fingerprint Size
 pub const FINGERPRINT_SIZE: usize = 16;
-
-pub const MAX_U64: u64 = u64::MAX;
-pub const BUCKETS: usize = 16;
-pub const DOUBLE_BUCKETS: usize = BUCKETS * 2;
 
 
 
@@ -53,21 +52,26 @@ impl TryFrom<u64> for Mode {
 /// Item
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Item {
+    /// timestamp
     pub timestamp: u64,
+    /// id
     pub id: [u8; ID_SIZE],
 }
 
 impl Item {
+    /// new Item
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// new Item with just timestamp, id is 0s
     pub fn with_timestamp(timestamp: u64) -> Self {
         let mut item = Self::new();
         item.timestamp = timestamp;
         item
     }
 
+    /// new Item with timestamp and id
     pub fn with_timestamp_and_id<T>(timestamp: u64, id: T) -> Result<Self, Error>
     where
         T: AsRef<[u8]>,
@@ -86,6 +90,7 @@ impl Item {
         Ok(item)
     }
 
+    /// get id
     pub fn get_id(&self) -> &[u8] {
         &self.id
     }
@@ -109,16 +114,21 @@ impl Ord for Item {
 
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+/// Bound
 pub struct Bound {
+    /// Item
     pub item: Item,
+    /// ID Len
     pub id_len: usize,
 }
 
 impl Bound {
+    /// new Bound
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// new Bound from item
     pub fn from_item(item: &Item) -> Self {
         let mut bound = Self::new();
         bound.item = *item;
@@ -126,6 +136,7 @@ impl Bound {
         bound
     }
 
+    /// new Bound from timestamp, id len is 0
     pub fn with_timestamp(timestamp: u64) -> Self {
         let mut bound = Self::new();
         bound.item.timestamp = timestamp;
@@ -133,6 +144,7 @@ impl Bound {
         bound
     }
 
+    /// new Bound from timestamp and id
     pub fn with_timestamp_and_id<T>(timestamp: u64, id: T) -> Result<Self, Error>
     where
         T: AsRef<[u8]>,
@@ -169,6 +181,7 @@ impl Ord for Bound {
 /// Fingerprint
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Fingerprint {
+    /// Buffer
     pub buf: [u8; FINGERPRINT_SIZE],
 }
 
@@ -178,6 +191,7 @@ impl Fingerprint {
         Self::default()
     }
 
+    /// Get as Vec
     pub fn vec(&self) -> Vec<u8> {
         self.buf.to_vec()
     }
@@ -267,6 +281,7 @@ impl Accumulator {
         self.add_accum(&neg);
     }
 
+    /// Compute fingerprint, given set size
     pub fn get_fingerprint(&self, n: u64) -> Fingerprint {
         let mut input: Vec<u8> = Vec::new();
         input.extend(&self.buf);
