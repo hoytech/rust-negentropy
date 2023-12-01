@@ -22,7 +22,6 @@ use alloc::vec::Vec;
 use std::convert::TryFrom;
 
 use std::collections::HashSet;
-use std::rc::Rc;
 
 mod error;
 mod encoding;
@@ -43,8 +42,8 @@ use self::encoding::{get_bytes, decode_var_int, encode_var_int};
 
 
 /// Negentropy
-pub struct Negentropy {
-    storage: Rc<dyn NegentropyStorageBase>,
+pub struct Negentropy<'a, T> {
+    storage: &'a mut T,
     frame_size_limit: u64,
 
     pub is_initiator: bool,
@@ -53,9 +52,9 @@ pub struct Negentropy {
     last_timestamp_out: u64,
 }
 
-impl Negentropy {
+impl<'a, T: NegentropyStorageBase> Negentropy<'a, T> {
     /// Create new [`Negentropy`] instance
-    pub fn new(storage: Rc<dyn NegentropyStorageBase>, frame_size_limit: u64) -> Result<Self, Error> {
+    pub fn new(storage: &'a mut T, frame_size_limit: u64) -> Result<Self, Error> {
         if frame_size_limit != 0 && frame_size_limit < 4096 {
             return Err(Error::FrameSizeLimitTooSmall);
         }
@@ -227,8 +226,8 @@ impl Negentropy {
                         let mut end_bound = curr_bound;
 
                         self.storage.iterate(lower, upper, &mut |item: Item, index| {
-                            if self.frame_size_limit != 0 && full_output.len() + response_ids.len() > (self.frame_size_limit as usize) + 200 {
-                                end_bound = Bound::new();
+                            if self.frame_size_limit != 0 && full_output.len() + response_ids.len() > (self.frame_size_limit as usize) - 200 {
+                                end_bound = Bound::from_item(&item);
                                 upper = index; // shrink upper so that remaining range gets correct fingerprint
                                 return false;
                             }
@@ -249,13 +248,14 @@ impl Negentropy {
                 }
             }
 
-            if self.frame_size_limit != 0 && full_output.len() + o.len() > (self.frame_size_limit as usize) + 200 {
+            if self.frame_size_limit != 0 && full_output.len() + o.len() > (self.frame_size_limit as usize) - 200 {
                 // frameSizeLimit exceeded: Stop range processing and return a fingerprint for the remaining range
                 let remaining_fingerprint = self.storage.fingerprint(upper, storage_size)?;
 
                 full_output.extend(self.encode_bound(&Bound::with_timestamp(MAX_U64)));
                 full_output.extend(self.encode_mode(Mode::Fingerprint));
                 full_output.extend(&remaining_fingerprint.buf);
+                break;
             } else {
                 full_output.extend(o);
             }
@@ -343,7 +343,7 @@ impl Negentropy {
         let timestamp = self.decode_timestamp_in(encoded)?;
         let len = decode_var_int(encoded)?;
         let id = get_bytes(encoded, len as usize)?;
-        Ok(Bound::from_item(&Item::with_timestamp_and_id(timestamp, id)?))
+        Ok(Bound::with_timestamp_and_id(timestamp, id)?)
     }
 
 
@@ -374,7 +374,7 @@ impl Negentropy {
 
     fn get_minimal_bound(&self, prev: &Item, curr: &Item) -> Result<Bound, Error> {
         if curr.timestamp != prev.timestamp {
-            Ok(Bound::from_item(&Item::with_timestamp(curr.timestamp)))
+            Ok(Bound::with_timestamp(curr.timestamp))
         } else {
             let mut shared_prefix_bytes: usize = 0;
             let curr_key = curr.id;
@@ -386,7 +386,7 @@ impl Negentropy {
                 }
                 shared_prefix_bytes += 1;
             }
-            Ok(Bound::from_item(&Item::with_timestamp_and_id(curr.timestamp, &curr_key[..shared_prefix_bytes + 1])?))
+            Ok(Bound::with_timestamp_and_id(curr.timestamp, &curr_key[..shared_prefix_bytes + 1])?)
         }
     }
 }

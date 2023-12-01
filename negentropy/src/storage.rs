@@ -27,7 +27,6 @@ pub trait NegentropyStorageBase {
     fn fingerprint(&self, begin: usize, end: usize) -> Result<Fingerprint, Error>;
 }
 
-
 /// NegentropyStorageVector
 #[derive(Debug, Clone)]
 pub struct NegentropyStorageVector {

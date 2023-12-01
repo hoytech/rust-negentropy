@@ -132,6 +132,25 @@ impl Bound {
         bound.id_len = 0;
         bound
     }
+
+    pub fn with_timestamp_and_id<T>(timestamp: u64, id: T) -> Result<Self, Error>
+    where
+        T: AsRef<[u8]>,
+    {
+        let id: &[u8] = id.as_ref();
+        let len: usize = id.len();
+
+        if len > ID_SIZE {
+            return Err(Error::IdTooBig); // FIXME: change name of error
+        }
+
+        let mut out = Bound::new();
+        out.item.timestamp = timestamp;
+        out.item.id[..len].copy_from_slice(id);
+        out.id_len = len;
+
+        Ok(out)
+    }
 }
 
 impl PartialOrd for Bound {

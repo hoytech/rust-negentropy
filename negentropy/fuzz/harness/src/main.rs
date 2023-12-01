@@ -3,10 +3,10 @@
 
 use std::io::BufRead;
 use std::{env, io};
-use std::rc::Rc;
 
 use negentropy::{Bytes, Negentropy};
-use negentropy::storage::{NegentropyStorageVector};
+use negentropy::storage::{NegentropyStorageBase, NegentropyStorageVector};
+
 
 fn main() {
     let frame_size_limit_env_var = env::var("FRAMESIZELIMIT");
@@ -16,8 +16,7 @@ fn main() {
         0
     };
 
-    let storage = Rc::new(NegentropyStorageVector::new().unwrap());
-    let mut ne : Box<Negentropy>;
+    let mut storage = NegentropyStorageVector::new().unwrap();
 
     for line in io::stdin().lock().lines() {
         let line_unwrapped = line.unwrap();
@@ -29,11 +28,22 @@ fn main() {
             storage.add_item(created, Bytes::from_hex(id).unwrap()).unwrap();
         } else if items[0] == "seal" {
             storage.seal().unwrap();
-            ne = Box::new(Negentropy::new(storage, frame_size_limit as u64).unwrap());
-        } else if items[0] == "initiate" {
+            break;
+        } else {
+            panic!("unknwown cmd");
+        }
+    }
+
+    let mut ne = Negentropy::new(&mut storage, frame_size_limit as u64).unwrap();
+
+    for line in io::stdin().lock().lines() {
+        let line_unwrapped = line.unwrap();
+        let items: Vec<&str> = line_unwrapped.split(',').collect();
+
+        if items[0] == "initiate" {
             let q = ne.initiate().unwrap();
             if frame_size_limit > 0 && q.len() / 2 > frame_size_limit {
-                panic!("frameSizeLimit exceeded");
+                panic!("frame_size_limit exceeded");
             }
             println!("msg,{}", q.as_hex());
         } else if items[0] == "msg" {
@@ -68,7 +78,7 @@ fn main() {
             }
 
             if frame_size_limit > 0 && q.len() / 2 > frame_size_limit {
-                panic!("frameSizeLimit exceeded");
+                panic!("frame_size_limit exceeded");
             }
             println!("msg,{}", q);
         } else {
