@@ -30,7 +30,8 @@ mod bytes;
 mod hex;
 mod sha256;
 mod types;
-mod storage;
+
+pub mod storage;
 
 pub use self::bytes::Bytes;
 pub use self::error::Error;
@@ -46,7 +47,7 @@ pub struct Negentropy {
     storage: Rc<dyn NegentropyStorageBase>,
     frame_size_limit: u64,
 
-    is_initiator: bool,
+    pub is_initiator: bool,
 
     last_timestamp_in: u64,
     last_timestamp_out: u64,

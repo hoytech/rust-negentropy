@@ -3,12 +3,12 @@
 
 use std::io::BufRead;
 use std::{env, io};
+use std::rc::Rc;
 
 use negentropy::{Bytes, Negentropy};
+use negentropy::storage::{NegentropyStorageVector};
 
 fn main() {
-    let id_size = 16;
-
     let frame_size_limit_env_var = env::var("FRAMESIZELIMIT");
     let frame_size_limit = if let Ok(frame_size_limit) = frame_size_limit_env_var {
         frame_size_limit.parse::<usize>().unwrap()
@@ -16,7 +16,8 @@ fn main() {
         0
     };
 
-    let mut ne = Negentropy::new(id_size, Some(frame_size_limit as u64)).unwrap();
+    let storage = Rc::new(NegentropyStorageVector::new().unwrap());
+    let mut ne : Box<Negentropy>;
 
     for line in io::stdin().lock().lines() {
         let line_unwrapped = line.unwrap();
@@ -25,9 +26,10 @@ fn main() {
         if items[0] == "item" {
             let created = items[1].parse::<u64>().unwrap();
             let id = items[2];
-            ne.add_item(created, Bytes::from_hex(id).unwrap()).unwrap();
+            storage.add_item(created, Bytes::from_hex(id).unwrap()).unwrap();
         } else if items[0] == "seal" {
-            ne.seal().unwrap();
+            storage.seal().unwrap();
+            ne = Box::new(Negentropy::new(storage, frame_size_limit as u64).unwrap());
         } else if items[0] == "initiate" {
             let q = ne.initiate().unwrap();
             if frame_size_limit > 0 && q.len() / 2 > frame_size_limit {
@@ -41,7 +43,7 @@ fn main() {
                 q = items[1].to_string();
             }
 
-            if ne.is_initiator() {
+            if ne.is_initiator {
                 let mut have_ids = Vec::new();
                 let mut need_ids = Vec::new();
                 let resp = ne
