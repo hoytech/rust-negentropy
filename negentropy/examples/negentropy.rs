@@ -20,7 +20,7 @@ fn main() {
         )
         .unwrap();
     storage_client.seal().unwrap();
-    let mut client = Negentropy::new(&mut storage_client, 9).unwrap();
+    let mut client = Negentropy::new(&mut storage_client, 0).unwrap();
     let init_output = client.initiate().unwrap();
     println!("Initiator Output: {}", init_output.as_hex());
 
@@ -64,13 +64,9 @@ fn main() {
     // Client
     let mut have_ids = Vec::new();
     let mut need_ids = Vec::new();
-    let reconcile_output_with_ids = client
+    client
         .reconcile_with_ids(&reconcile_output, &mut have_ids, &mut need_ids)
         .unwrap();
-    println!(
-        "Reconcile Output with IDs: {}",
-        reconcile_output_with_ids.unwrap().as_hex()
-    );
     println!(
         "Have IDs: {}",
         have_ids

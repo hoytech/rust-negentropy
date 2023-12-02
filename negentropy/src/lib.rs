@@ -513,19 +513,18 @@ mod tests {
 mod benches {
     use test::{black_box, Bencher};
 
+    use super::storage::{NegentropyStorageVector};
     use super::{Bytes, Negentropy};
 
-    const ID_SIZE: usize = 16;
-    const FRAME_SIZE_LIMIT: Option<u64> = None;
     const ITEMS_LEN: usize = 100_000;
 
     #[bench]
-    pub fn add_item(bh: &mut Bencher) {
-        let mut client = Negentropy::new(ID_SIZE, FRAME_SIZE_LIMIT).unwrap();
+    pub fn insert(bh: &mut Bencher) {
+        let mut storage_client = NegentropyStorageVector::new().unwrap();
         bh.iter(|| {
-            black_box(client.add_item(
+            black_box(storage_client.insert(
                 0,
-                Bytes::from_hex("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap(),
+                Bytes::from_hex("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap(),
             ))
             .unwrap();
         });
@@ -534,25 +533,27 @@ mod benches {
     #[bench]
     pub fn final_reconciliation_100_000_items(bh: &mut Bencher) {
         // Client
-        let mut client = Negentropy::new(ID_SIZE, FRAME_SIZE_LIMIT).unwrap();
+        let mut storage_client = NegentropyStorageVector::new().unwrap();
         for (index, item) in generate_combinations("abc", 32, 2).into_iter().enumerate() {
-            client
-                .add_item(index as u64, Bytes::from_hex(item).unwrap())
+            storage_client
+                .insert(index as u64, Bytes::from_hex(item).unwrap())
                 .unwrap();
         }
-        client.seal().unwrap();
+        storage_client.seal().unwrap();
+        let mut client = Negentropy::new(&mut storage_client, 0).unwrap();
         let init_output = client.initiate().unwrap();
 
-        let mut relay = Negentropy::new(ID_SIZE, FRAME_SIZE_LIMIT).unwrap();
+        let mut storage_relay = NegentropyStorageVector::new().unwrap();
         for (index, item) in generate_combinations("abc", 32, ITEMS_LEN)
             .into_iter()
             .enumerate()
         {
-            relay
-                .add_item(index as u64, Bytes::from_hex(item).unwrap())
+            storage_relay
+                .insert(index as u64, Bytes::from_hex(item).unwrap())
                 .unwrap();
         }
-        relay.seal().unwrap();
+        storage_relay.seal().unwrap();
+        let mut relay = Negentropy::new(&mut storage_relay, 0).unwrap();
         let reconcile_output = relay.reconcile(&init_output).unwrap();
 
         bh.iter(|| {
