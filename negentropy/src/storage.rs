@@ -99,8 +99,8 @@ impl NegentropyStorageVector {
         })
     }
 
-    /// Add item
-    pub fn add_item(&mut self, created_at: u64, id: Bytes) -> Result<(), Error> {
+    /// Insert item
+    pub fn insert(&mut self, created_at: u64, id: Bytes) -> Result<(), Error> {
         if self.sealed {
             return Err(Error::AlreadySealed);
         }
@@ -130,6 +130,13 @@ impl NegentropyStorageVector {
                 return Err(Error::DuplicateItemAdded);
             }
         }
+
+        Ok(())
+    }
+
+    /// Unseal
+    pub fn unseal(&mut self) -> Result<(), Error> {
+        self.sealed = false;
 
         Ok(())
     }

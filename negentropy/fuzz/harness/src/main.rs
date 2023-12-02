@@ -25,7 +25,7 @@ fn main() {
         if items[0] == "item" {
             let created = items[1].parse::<u64>().unwrap();
             let id = items[2];
-            storage.add_item(created, Bytes::from_hex(id).unwrap()).unwrap();
+            storage.insert(created, Bytes::from_hex(id).unwrap()).unwrap();
         } else if items[0] == "seal" {
             storage.seal().unwrap();
             break;
