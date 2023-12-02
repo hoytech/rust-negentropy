@@ -408,6 +408,7 @@ impl<'a, T: NegentropyStorageBase> Negentropy<'a, T> {
 
 #[cfg(test)]
 mod tests {
+    use self::storage::{NegentropyStorageVector};
     use alloc::vec;
 
     use super::*;
@@ -415,55 +416,58 @@ mod tests {
     #[test]
     fn test_reconciliation_set() {
         // Client
-        let mut client = Negentropy::new(16, None).unwrap();
-        client
-            .add_item(
+        let mut storage_client = NegentropyStorageVector::new().unwrap();
+        storage_client
+            .insert(
                 0,
-                Bytes::from_hex("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap(),
+                Bytes::from_hex("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap(),
             )
             .unwrap();
-        client
-            .add_item(
+        storage_client
+            .insert(
                 1,
-                Bytes::from_hex("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap(),
+                Bytes::from_hex("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap(),
             )
             .unwrap();
-        client.seal().unwrap();
+        storage_client.seal().unwrap();
+
+        let mut client = Negentropy::new(&mut storage_client, 0).unwrap();
         let init_output = client.initiate().unwrap();
 
         // Relay
-        let mut relay = Negentropy::new(16, None).unwrap();
-        relay
-            .add_item(
+        let mut storage_relay = NegentropyStorageVector::new().unwrap();
+        storage_relay
+            .insert(
                 0,
-                Bytes::from_hex("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap(),
+                Bytes::from_hex("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap(),
             )
             .unwrap();
-        relay
-            .add_item(
+        storage_relay
+            .insert(
                 2,
-                Bytes::from_hex("cccccccccccccccccccccccccccccccc").unwrap(),
+                Bytes::from_hex("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc").unwrap(),
             )
             .unwrap();
-        relay
-            .add_item(
+        storage_relay
+            .insert(
                 3,
-                Bytes::from_hex("11111111111111111111111111111111").unwrap(),
+                Bytes::from_hex("1111111111111111111111111111111111111111111111111111111111111111").unwrap(),
             )
             .unwrap();
-        relay
-            .add_item(
+        storage_relay
+            .insert(
                 5,
-                Bytes::from_hex("22222222222222222222222222222222").unwrap(),
+                Bytes::from_hex("2222222222222222222222222222222222222222222222222222222222222222").unwrap(),
             )
             .unwrap();
-        relay
-            .add_item(
+        storage_relay
+            .insert(
                 10,
-                Bytes::from_hex("33333333333333333333333333333333").unwrap(),
+                Bytes::from_hex("3333333333333333333333333333333333333333333333333333333333333333").unwrap(),
             )
             .unwrap();
-        relay.seal().unwrap();
+        storage_relay.seal().unwrap();
+        let mut relay = Negentropy::new(&mut storage_relay, 0).unwrap();
         let reconcile_output = relay.reconcile(&init_output).unwrap();
 
         // Client
@@ -477,7 +481,7 @@ mod tests {
         assert!(reconcile_output_with_ids.is_none());
 
         // Check have IDs
-        assert!(have_ids.contains(&Bytes::from_hex("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap()));
+        assert!(have_ids.contains(&Bytes::from_hex("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap()));
 
         // Check need IDs
         #[cfg(feature = "std")]
@@ -485,22 +489,20 @@ mod tests {
         assert_eq!(
             need_ids,
             vec![
-                Bytes::from_hex("11111111111111111111111111111111").unwrap(),
-                Bytes::from_hex("22222222222222222222222222222222").unwrap(),
-                Bytes::from_hex("33333333333333333333333333333333").unwrap(),
-                Bytes::from_hex("cccccccccccccccccccccccccccccccc").unwrap(),
+                Bytes::from_hex("1111111111111111111111111111111111111111111111111111111111111111").unwrap(),
+                Bytes::from_hex("2222222222222222222222222222222222222222222222222222222222222222").unwrap(),
+                Bytes::from_hex("3333333333333333333333333333333333333333333333333333333333333333").unwrap(),
+                Bytes::from_hex("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc").unwrap(),
             ]
         )
     }
 
     #[test]
     fn test_invalid_id_size() {
-        assert_eq!(Negentropy::new(33, None).unwrap_err(), Error::InvalidIdSize);
-
-        let mut client = Negentropy::new(16, None).unwrap();
+        let mut storage_client = NegentropyStorageVector::new().unwrap();
         assert_eq!(
-            client
-                .add_item(0, Bytes::from_hex("abcdef").unwrap())
+            storage_client
+                .insert(0, Bytes::from_hex("abcdef").unwrap())
                 .unwrap_err(),
             Error::IdSizeNotMatch
         );
