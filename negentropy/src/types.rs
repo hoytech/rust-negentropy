@@ -80,7 +80,7 @@ impl Item {
         let len: usize = id.len();
 
         if len != ID_SIZE {
-            return Err(Error::IdTooBig); // FIXME: change name of error
+            return Err(Error::InvalidIdSize);
         }
 
         let mut item = Self::new();
@@ -153,7 +153,7 @@ impl Bound {
         let len: usize = id.len();
 
         if len > ID_SIZE {
-            return Err(Error::IdTooBig); // FIXME: change name of error
+            return Err(Error::IdTooBig);
         }
 
         let mut out = Bound::new();
