@@ -91,6 +91,11 @@ impl<'a, T: NegentropyStorageBase> Negentropy<'a, T> {
         Ok(Bytes::from(output))
     }
 
+    /// Set Initiator: For resuming initiation flow with a new instance
+    pub fn setInitiator(&mut self) {
+        self.is_initiator = true;
+    }
+
     /// Reconcile (server method)
     pub fn reconcile(&mut self, query: &Bytes) -> Result<Bytes, Error> {
         if self.is_initiator {
