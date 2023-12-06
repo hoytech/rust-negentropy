@@ -92,7 +92,7 @@ impl<'a, T: NegentropyStorageBase> Negentropy<'a, T> {
     }
 
     /// Set Initiator: For resuming initiation flow with a new instance
-    pub fn setInitiator(&mut self) {
+    pub fn set_initiator(&mut self) {
         self.is_initiator = true;
     }
 
@@ -310,7 +310,20 @@ impl<'a, T: NegentropyStorageBase> Negentropy<'a, T> {
                 let next_bound = if curr == upper {
                     upper_bound
                 } else {
-                    self.get_minimal_bound(&self.storage.get_item(curr - 1)?, &self.storage.get_item(curr)?)?
+                    let mut prev_item: Item = Item::with_timestamp(0);
+                    let mut curr_item: Item = Item::with_timestamp(0);
+
+                    self.storage.iterate(curr - 1, curr + 1, &mut |item: Item, index| {
+                        if index == curr - 1 {
+                            prev_item = item;
+                        } else {
+                            curr_item = item;
+                        }
+
+                        true
+                    })?;
+
+                    self.get_minimal_bound(&prev_item, &curr_item)?
                 };
 
                 o.extend(self.encode_bound(&next_bound));
